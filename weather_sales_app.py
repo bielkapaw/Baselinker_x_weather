@@ -176,7 +176,7 @@ top_l, top_r = st.columns([1,4])
 with top_l:
     st.image(logo_url, caption="", width=720)
 with top_r:
-    st.title("   📊 BielkaP  x Baselinker")
+    st.title("  ")
 
 # --- Sidebar ---
 with st.sidebar:
