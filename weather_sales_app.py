@@ -174,7 +174,7 @@ def hash_files(files) -> str:
 logo_url = "https://www.drzewa.com.pl/static/version1595339804/frontend/Pearl/weltpixel_custom/pl_PL/images/logo-konieczko.svg"
 top_l, top_r = st.columns([1,4])
 with top_l:
-    st.image(logo_url, caption="", width=1280)
+    st.image(logo_url, caption="", width=720)
 with top_r:
     st.title("   📊 BielkaP  x Baselinker")
 
