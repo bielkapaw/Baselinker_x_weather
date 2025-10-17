@@ -13,6 +13,60 @@ import requests
 st.set_page_config(page_title="Baselinker x Weather", layout="wide")
 PLOTLY_TMPL = "plotly_white"
 
+# --- Minimal, professional theming (no logic changes) ---
+px.defaults.template = PLOTLY_TMPL
+px.defaults.height = 420
+
+st.markdown("""
+<style>
+/* App width and base typography */
+.stApp { background-color: #ffffff; }
+.block-container { max-width: 1280px; padding-top: 1rem; padding-bottom: 2rem; }
+
+/* Headings */
+h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+  font-weight: 600; letter-spacing: 0.2px;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
+section[data-testid="stSidebar"] h1, 
+section[data-testid="stSidebar"] h2, 
+section[data-testid="stSidebar"] h3 {
+  margin-top: .25rem; margin-bottom: .5rem;
+}
+
+/* Buttons */
+button[kind="secondary"], button[kind="primary"], .stButton>button {
+  border-radius: 10px;
+  border: 1px solid #e6e6e6;
+  padding: .55rem .9rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+
+/* Tabs */
+div[data-baseweb="tab-list"] { gap: .25rem; }
+div[role="tab"] {
+  border-radius: 10px 10px 0 0 !important;
+  padding: .5rem .9rem !important;
+  font-weight: 600;
+}
+
+/* Metrics */
+[data-testid="stMetric"] { background: #fafafa; border: 1px solid #eee; border-radius: 12px; padding: .75rem; }
+[data-testid="stMetric"] [data-testid="stMetricLabel"] { color: #666; }
+[data-testid="stMetricValue"] { font-weight: 700; }
+
+/* Tables */
+[data-testid="stDataFrameResizable"] {
+  border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+}
+
+/* Code blocks */
+code, pre { font-size: 0.92rem; }
+</style>
+""", unsafe_allow_html=True)
+
 CITY_COORDS: Dict[str, tuple] = {
     "Warszawa": (52.2297, 21.0122),
     "Kraków": (50.0614, 19.9372),
@@ -174,9 +228,10 @@ def hash_files(files) -> str:
 logo_url = "https://www.drzewa.com.pl/static/version1595339804/frontend/Pearl/weltpixel_custom/pl_PL/images/logo-konieczko.svg"
 top_l, top_r = st.columns([2,4])
 with top_l:
-    st.image(logo_url, caption="", width=720)
+    # reduced logo size for a cleaner header
+    st.image(logo_url, caption="", width=220)
 with top_r:
-    st.title("")
+    st.title("")  # left as-is to keep your layout intact
 
 # --- Sidebar ---
 with st.sidebar:
@@ -312,7 +367,8 @@ with tabs[0]:
         barmode="overlay",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         margin=dict(l=10, r=10, t=40, b=10),
-        yaxis3=dict(title="Precipitation (mm)", overlaying="y", side="right", position=1.0, showgrid=False)
+        yaxis3=dict(title="Precipitation (mm)", overlaying="y", side="right", position=1.0, showgrid=False),
+        font=dict(size=13)
     )
     fig.update_yaxes(title_text=("Order count" if metric=="sales_count" else "Order value"), secondary_y=False)
     fig.update_yaxes(title_text="Temperature (°C)", secondary_y=True)
@@ -332,7 +388,12 @@ with tabs[1]:
     figm.add_trace(go.Bar(x=mdf["date"], y=mdf[metric], name="Sales (monthly)", marker_line_width=0), secondary_y=False)
     figm.add_trace(go.Scatter(x=mdf["date"], y=mdf["temperature_2m_mean"], name="Avg T (monthly)", mode="lines+markers"), secondary_y=True)
     figm.add_trace(go.Scatter(x=mdf["date"], y=mdf["precipitation_sum"], name="Precipitation (monthly sum)", mode="lines+markers"), secondary_y=True)
-    figm.update_layout(template=PLOTLY_TMPL, legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0), margin=dict(l=10,r=10,t=40,b=10))
+    figm.update_layout(
+        template=PLOTLY_TMPL,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        margin=dict(l=10,r=10,t=40,b=10),
+        font=dict(size=13)
+    )
     figm.update_yaxes(title_text=("Count" if metric=="sales_count" else "Value"), secondary_y=False)
     figm.update_yaxes(title_text="Temp / Precipitation", secondary_y=True)
     st.plotly_chart(figm, use_container_width=True)
@@ -345,9 +406,12 @@ with tabs[2]:
     g = tmp.groupby(["dow","rain_label"], as_index=False).agg(val=(metric,"mean"))
     dow_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
     g["dow_name"] = g["dow"].map(dow_map)
-    figw = px.bar(g, x="dow_name", y="val", color="rain_label", barmode="group", template=PLOTLY_TMPL,
-                  labels={"dow_name":"Day of week","val":"Average sales","rain_label":"Condition"},
-                  title="Average sales vs day of week (rain vs no rain)")
+    figw = px.bar(
+        g, x="dow_name", y="val", color="rain_label", barmode="group", template=PLOTLY_TMPL,
+        labels={"dow_name":"Day of week","val":"Average sales","rain_label":"Condition"},
+        title="Average sales vs day of week (rain vs no rain)"
+    )
+    figw.update_layout(font=dict(size=13))
     st.plotly_chart(figw, use_container_width=True)
 
 # --- HEATMAP ---
@@ -356,10 +420,15 @@ with tabs[3]:
     h["m"] = h["date"].dt.month
     h["d"] = h["date"].dt.day
     pivot = h.pivot_table(index="m", columns="d", values=metric, aggfunc="sum")
-    figheat = px.imshow(pivot, aspect="auto", template=PLOTLY_TMPL, color_continuous_scale="Turbo",
-                        labels=dict(x="Day of month", y="Month", color=("Count" if metric=="sales_count" else "Value")))
-    figheat.update_yaxes(tickmode="array", tickvals=list(range(1,13)),
-                         ticktext=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"])
+    figheat = px.imshow(
+        pivot, aspect="auto", template=PLOTLY_TMPL, color_continuous_scale="Turbo",
+        labels=dict(x="Day of month", y="Month", color=("Count" if metric=="sales_count" else "Value"))
+    )
+    figheat.update_yaxes(
+        tickmode="array", tickvals=list(range(1,13)),
+        ticktext=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]
+    )
+    figheat.update_layout(font=dict(size=13))
     st.plotly_chart(figheat, use_container_width=True)
 
 # --- TABLE + EXPORT ---
