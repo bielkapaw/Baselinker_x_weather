@@ -182,16 +182,16 @@ with top_r:
 with st.sidebar:
     st.header("Files")
     sales_file = st.file_uploader("Sales CSV (BaseLinker)", type=["csv"], key="sales_up")
-    weather_files = st.file_uploader("Weather CSV (Open-Meteo) – you may select multiple", type=["csv"], accept_multiple_files=True, key="wx_up")
-    st.caption("Sales: “Data dodania”, “Ilość zamówień”, “Wartość zamówień”. Weather: “time/date”, “temperature_2m_*”, “precipitation_sum”.")
+    weather_files = st.file_uploader("Weather CSV (Open-Meteo) – you can select multiple", type=["csv"], accept_multiple_files=True, key="wx_up")
+    st.caption('Sales: "Data dodania", "Ilość zamówień", "Wartość zamówień". Weather: "time/date", "temperature_2m_*", "precipitation_sum".')
     st.divider()
     st.header("Chart settings")
     metric = st.selectbox("Sales metric", ["sales_count","sales_value"], format_func=lambda x: "Order count" if x=="sales_count" else "Order value")
-    weather_var = st.selectbox("Weather variable (right axis)", ["temperature_2m_mean","temperature_2m_min","temperature_2m_max"], index=0,
+    weather_var = st.selectbox("Weather parameter (right axis)", ["temperature_2m_mean","temperature_2m_min","temperature_2m_max"], index=0,
                                format_func=lambda x: {"temperature_2m_mean":"Avg T (°C)","temperature_2m_min":"Min T (°C)","temperature_2m_max":"Max T (°C)"}[x])
-    lag_days = st.slider("Weather lag [days]", min_value=-14, max_value=14, value=0, step=1)
+    lag_days = st.slider("Weather averaging [days]", min_value=-14, max_value=14, value=0, step=1)
     ma_win = st.selectbox("Smoothing (MA)", [0,7,14], index=1)
-    st.caption("Time series: Sales (Y, left) + Temperatures (Y2, right) + Precipitation (Y3, right).")
+    st.caption("Time chart: Sales (Y, left) + Temperatures (Y2, right) + Precipitation (Y3, right).")
 
 # --- Session init ---
 ss = st.session_state
@@ -211,7 +211,7 @@ if sales_file is not None:
     except Exception as e:
         st.warning(f"Sales: {e}")
 
-# --- Load weather + auto-refresh on new uploads ---
+# --- Load weather + auto-refresh after new upload ---
 if weather_files:
     cur_hash = hash_files(weather_files)
     if cur_hash != ss.wx_version:
@@ -231,7 +231,7 @@ if weather_files:
             st.success("Weather: " + ", ".join(ss.cities))
             if not ss.sales_df.empty:
                 ss.merged_df = merge_sales_weather(ss.sales_df, ss.weather_by_city[ss.selected_city])
-                st.info("Updated charts for: " + ss.selected_city)
+                st.info("Charts updated for: " + ss.selected_city)
 
 # --- Controls and merge ---
 c1, c2 = st.columns([2,2])
@@ -254,7 +254,7 @@ if update_click:
         st.success(f"Updated: {len(ss.merged_df)} days | City: {city}")
 
 if ss.merged_df.empty:
-    st.info("Upload files, choose a city, and click “🔄 Update dataset”.")
+    st.info('Upload files, choose a city and click "🔄 Update dataset".')
     st.stop()
 
 base = ss.merged_df.copy()
@@ -282,7 +282,7 @@ k4.metric("Avg T (°C)", f"{base['temperature_2m_mean'].mean():.2f}")
 k5.metric("Precipitation (mm)", f"{base['precipitation_sum'].sum():.2f}")
 
 tabs = st.tabs([
-    "Time series: sales + weather",
+    "Timeline: sales + weather",
     "Monthly",
     "Weekly pattern",
     "Heatmap",
@@ -290,7 +290,7 @@ tabs = st.tabs([
     "Download CSV (PL cities)"
 ])
 
-# --- TIME SERIES (Y, Y2, Y3) ---
+# --- TIMELINE (Y, Y2, Y3) ---
 with tabs[0]:
     df = base.copy().sort_values("date")
     df = rolling_cols(df, metric, weather_var, ma_win)
@@ -345,11 +345,9 @@ with tabs[2]:
     g = tmp.groupby(["dow","rain_label"], as_index=False).agg(val=(metric,"mean"))
     dow_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
     g["dow_name"] = g["dow"].map(dow_map)
-    figw = px.bar(
-        g, x="dow_name", y="val", color="rain_label", barmode="group", template=PLOTLY_TMPL,
-        labels={"dow_name":"Day of week","val":"Average sales","rain_label":"Condition"},
-        title="Average sales vs day of week (rain vs no rain)"
-    )
+    figw = px.bar(g, x="dow_name", y="val", color="rain_label", barmode="group", template=PLOTLY_TMPL,
+                  labels={"dow_name":"Day of week","val":"Average sales","rain_label":"Condition"},
+                  title="Average sales vs day of week (rain vs no rain)")
     st.plotly_chart(figw, use_container_width=True)
 
 # --- HEATMAP ---
@@ -358,24 +356,16 @@ with tabs[3]:
     h["m"] = h["date"].dt.month
     h["d"] = h["date"].dt.day
     pivot = h.pivot_table(index="m", columns="d", values=metric, aggfunc="sum")
-    figheat = px.imshow(
-        pivot, aspect="auto", template=PLOTLY_TMPL, color_continuous_scale="Turbo",
-        labels=dict(x="Day of month", y="Month", color=("Count" if metric=="sales_count" else "Value"))
-    )
-    figheat.update_yaxes(
-        tickmode="array", tickvals=list(range(1,13)),
-        ticktext=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]
-    )
+    figheat = px.imshow(pivot, aspect="auto", template=PLOTLY_TMPL, color_continuous_scale="Turbo",
+                        labels=dict(x="Day of month", y="Month", color=("Count" if metric=="sales_count" else "Value")))
+    figheat.update_yaxes(tickmode="array", tickvals=list(range(1,13)),
+                         ticktext=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"])
     st.plotly_chart(figheat, use_container_width=True)
 
 # --- TABLE + EXPORT ---
 with tabs[4]:
-    st.download_button(
-        "💾 Download merged CSV",
-        data=base.to_csv(index=False).encode("utf-8"),
-        file_name=f"merged_{ss.selected_city}.csv",
-        mime="text/csv"
-    )
+    st.download_button("💾 Download merged CSV", data=base.to_csv(index=False).encode("utf-8"),
+                       file_name=f"merged_{ss.selected_city}.csv", mime="text/csv")
     st.dataframe(base.sort_values("date"), use_container_width=True, hide_index=True)
 
 # --- DOWNLOAD CSV (multiple Polish cities) ---
